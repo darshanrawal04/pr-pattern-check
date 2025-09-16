@@ -1,2 +1,10 @@
-# This is a bad example for testing
-df.write.format("delta").option("path", "/mnt/raw/data").save()
+# hello world 
+
+# risky but commented out — should NOT fail
+# df = spark.read.format("delta").option("path", "/mnt/data").load()
+
+# Active risky code — should fail
+# df = spark.read.format("delta").option("path", "/mnt/data").load()
+
+
+
