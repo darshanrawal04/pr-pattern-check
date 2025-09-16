@@ -13,11 +13,13 @@ from pathlib import Path
 PATTERNS = {
     "mnt_path": re.compile(r'["\']\/mnt\/[^"\']*["\']', re.IGNORECASE),
     "deltatable_forpath": re.compile(r'DeltaTable\s*\.forPath\s*\(', re.IGNORECASE),
-    "option_path": re.compile(r'\.option\s*\(\s*["\']path["\']', re.IGNORECASE)
+    "option_path": re.compile(r'\.option\s*\(\s*["\']path["\']', re.IGNORECASE),
+    "input_file_name": re.compile(r'\binput_file_name\s*\(', re.IGNORECASE)  # NEW
 }
 
 IGNORE_PATHS = []
 EXTENSIONS = {".py", ".ipynb"}
+
 
 # ---------------- HELPERS ----------------
 def path_ignored(path_str):
@@ -26,11 +28,13 @@ def path_ignored(path_str):
             return True
     return False
 
+
 def load_changed_files(file_path):
     if not file_path or not Path(file_path).exists():
         return []
     txt = Path(file_path).read_text().splitlines()
     return [line.strip() for line in txt if line.strip()]
+
 
 def extract_code_from_ipynb(path: Path):
     try:
@@ -46,18 +50,32 @@ def extract_code_from_ipynb(path: Path):
             code_cells.append({"cell_index": i+1, "source": src})
     return code_cells
 
+
 def scan_code_text(code_text, filename):
     findings = []
     for lineno, line in enumerate(code_text.splitlines(), start=1):
+        stripped = line.strip()
+
+        # Skip empty lines
+        if not stripped:
+            continue
+
+        # Remove inline comments (everything after #)
+        code_only = line.split("#", 1)[0].strip()
+        if not code_only:  # line is comment-only
+            continue
+
+        # Scan only real code (without comments)
         for pname, patt in PATTERNS.items():
-            if patt.search(line):
+            if patt.search(code_only):
                 findings.append({
                     "file": filename,
                     "line": lineno,
                     "pattern": pname,
-                    "snippet": line.strip()
+                    "snippet": stripped
                 })
     return findings
+
 
 def main():
     changed_file_list_path = sys.argv[1] if len(sys.argv) > 1 else None
@@ -91,10 +109,10 @@ def main():
                 results.extend(scan_code_text(cell["source"], f"{p} (cell {cell['cell_index']})"))
 
     if not results:
-        print(" No risky patterns found in changed files.")
+        print("✅ No risky patterns found in changed files.")
         sys.exit(0)
 
-    print(" Risky patterns detected:")
+    print("❌ Risky patterns detected:")
     for r in results:
         msg = f"Pattern '{r['pattern']}' found — {r['snippet']}"
         safe_msg = msg.replace("\n", " ").replace("\r", " ")
@@ -106,6 +124,7 @@ def main():
         print(f"- {r['file']}:{r['line']}  [{r['pattern']}] {r['snippet']}")
 
     sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
